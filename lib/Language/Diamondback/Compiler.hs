@@ -76,11 +76,17 @@ funInstrs n instrs
 
 -- FILL: insert instructions for setting up stack for `n` local vars
 funEntry :: Int -> [Instruction]
-funEntry n = error "TBD:funEntry"
+funEntry n = [ IPush (Reg EBP)
+             , IMov  (Reg EBP) (Reg ESP)
+             , ISub  (Reg ESP) (Const (4 * n))
+             ]
 
 -- FILL: clean up stack & labels for jumping to error
 funExit :: [Instruction]
-funExit = error "TBD:funExit"
+funExit = [ IMov (Reg ESP) (Reg EBP)
+          , IPop  (Reg EBP)
+          , IRet
+          ]
 
 --------------------------------------------------------------------------------
 -- | @countVars e@ returns the maximum stack-size needed to evaluate e,
@@ -95,8 +101,112 @@ countVars _              = 0
 --------------------------------------------------------------------------------
 compileEnv :: Env -> AExp -> [Instruction]
 --------------------------------------------------------------------------------
-compileEnv env e = error "TBD:compileEnv"
+--compileEnv env e = error "TBD:compileEnv"
+compileEnv env v@Number {}       = [ compileImm env v  ]
 
+compileEnv env v@Boolean {}      = [ compileImm env v  ]
+
+compileEnv env v@Id {}           = [ compileImm env v  ]
+
+compileEnv env e@Let {}          = is ++ compileEnv env' body
+  where
+    (env', is)                   = compileBinds env [] binds
+    (binds, body)                = exprBinds e
+
+compileEnv env (Prim1 o v l)     = compilePrim1 l env o v
+
+compileEnv env (Prim2 o v1 v2 l) = compilePrim2 l env o v1 v2
+
+compileEnv env (If v e1 e2 l)    = compileIf l env v e1 e2
+-------------------------------------------------------------------------------
+compilePrim1 :: Tag -> Env -> Prim1 -> IExp -> [Instruction]
+compilePrim1 _ env Add1 v = assertType env v TNumber 
+                            ++ [ IAdd (Reg EAX) (Const 2) ]
+compilePrim1 _ env Sub1 v = assertType env v TNumber  
+                            ++ [ IAdd (Reg EAX) (Const (-2)) ]
+compilePrim1 _ env Print v = compileEnv env v ++
+                             [ IMov (Reg EBX) (Reg EAX)
+                             , IPush (Reg EBX)
+                             , ICall (Builtin "print")]
+compilePrim1 _ env IsNum v = compileEnv env v ++
+                            [ IMov (Reg EBX) (Reg EAX)
+                            , IAnd (Reg EBX) (HexConst 0x00000001)      
+                            , IShl (Reg EBX) (Const 31)
+                            , IOr  (Reg EBX) (HexConst 0x00000001)]
+compilePrim1 _ env IsBool v = compileEnv env v ++
+                            [ IMov (Reg EBX) (Reg EAX)
+                            , IAnd (Reg EBX) (HexConst 0x00000001)
+                            , IShl (Reg EBX) (Const 31)
+                            , IOr  (Reg EBX) (HexConst 0x1000001)]
+
+compilePrim2 :: Tag -> Env -> Prim2 -> IExp -> IExp -> [Instruction]
+compilePrim2 _ env Plus v1 v2 = assertType env v1 TNumber
+                                ++ assertType env v2 TNumber
+                                ++ [ IMov (Reg EAX) (immArg env v1)
+                                , IAdd (Reg EAX) (immArg env v2)
+                                ]
+compilePrim2 _ env Minus v1 v2  = assertType env v1 TNumber
+                                ++ assertType env v2 TNumber
+                                ++ [ IMov (Reg EAX) (immArg env v1)
+                                , ISub (Reg EAX) (immArg env v2)
+                                ]
+compilePrim2 _ env Times v1 v2  = assertType env v1 TNumber
+                                ++ assertType env v2 TNumber
+                                ++ [ IMov (Reg EAX) (immArg env v1)
+                                , IMul (Reg EAX) (immArg env v2)
+                                , ISar (Reg EAX) (Const 1)
+                                ]
+
+compilePrim2 _ env Greater v1 v2  = assertType env v1 TNumber
+                                  ++ assertType env v2 TNumber
+                                  ++ [ IMov (Reg EAX) (immArg env v2)
+                                  , ISub (Reg EAX) (immArg env v1)
+                                  , IAnd (Reg EAX) (HexConst 0x80000000)
+                                  , IOr  (Reg EAX) (typeMask TBoolean)
+                                  ]
+
+compilePrim2 _ env Less v1 v2  = assertType env v1 TNumber
+                                  ++ assertType env v2 TNumber
+                                  ++ [ IMov (Reg EAX) (immArg env v1)
+                                  , ISub (Reg EAX) (immArg env v2)
+                                  , IAnd (Reg EAX) (HexConst 0x80000000)
+                                  , IOr  (Reg EAX) (typeMask TBoolean)
+                                  ]
+
+compilePrim2 l env Equal v1 v2  = assertType env v1 TNumber
+                                ++ assertType env v2 TNumber
+                                ++ [ IMov (Reg EAX) (immArg env v1)
+                                , ICmp (Reg EAX) (immArg env v2)
+                                , IJe (BranchTrue (snd l))
+                                , IMov (Reg EAX) (repr False)
+                                , IJmp (BranchDone (snd l))
+                                , ILabel (BranchTrue (snd l))
+                                , IMov (Reg EAX) (repr True)
+                                , ILabel (BranchDone (snd l))
+                                ]
+
+
+compileIf :: Tag -> Env -> IExp -> AExp -> AExp -> [Instruction]
+compileIf l env v e1 e2 = assertType env v TBoolean
+                          ++ [ IMov (Reg EAX) (immArg env v) 
+                             , ICmp (Reg EAX) (repr True)
+                             , IJe (BranchTrue (snd l))
+                             ]
+                          ++ compileEnv env e2
+                          ++ [ IJmp   (BranchDone (snd l))
+                             , ILabel (BranchTrue (snd l))
+                             ]
+                          ++ compileEnv env e1
+                          ++ [ ILabel (BranchDone (snd l)) ]
+
+assertType :: Env -> IExp -> Ty -> [Instruction]
+assertType env v ty
+  = [ IMov (Reg EAX) (immArg env v)
+    , IMov (Reg EBX) (Reg EAX)
+    , IAnd (Reg EBX) (HexConst 0x00000001)
+    , ICmp (Reg EBX) (typeTag  ty)]
+
+--------------------------------------------------------------------------------
 compileImm :: Env -> IExp -> Instruction
 compileImm env v = IMov (Reg EAX) (immArg env v)
 

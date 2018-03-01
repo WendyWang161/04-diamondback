@@ -1,10 +1,9 @@
 ######################################################
 
-COURSE=cs131e
+COURSE=cs131w
 ASGN=04
 COMPILER=diamondback
 EXT=diamond
-GROUP=group.txt
 
 ######################################################
 

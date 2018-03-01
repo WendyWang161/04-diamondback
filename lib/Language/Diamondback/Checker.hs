@@ -18,6 +18,7 @@ import qualified Data.List          as L
 import           Text.Printf        (printf)
 import           Language.Diamondback.Types
 import           Language.Diamondback.Utils
+import           Data.Set           (Set)
 
 --------------------------------------------------------------------------------
 check :: BareProgram -> BareProgram
@@ -44,14 +45,35 @@ wellFormed (Prog ds e) = duplicateFunErrors ds
 -- | `wellFormedD fEnv vEnv d` returns the list of errors for a func-decl `d`
 --------------------------------------------------------------------------------
 wellFormedD :: FunEnv -> BareDecl -> [UserError]
-wellFormedD fEnv (Decl _ xs e _) = error "TBD:wellFormedD"
+wellFormedD fEnv (Decl _ xs e _) = if length l /= 0 
+                                   then [errDupParam (head l)] else []
+                                ++ wellFormedE fEnv vEnv e
+  where
+    vEnv                         = foldr addEnv emptyEnv xs
+    l                            = concat (dupBy bindId xs)
 
 --------------------------------------------------------------------------------
 -- | `wellFormedE vEnv e` returns the list of errors for an expression `e`
 --------------------------------------------------------------------------------
 wellFormedE :: FunEnv -> Env -> Bare -> [UserError]
-wellFormedE fEnv env e = error "TBD:wellFormedE"
-
+wellFormedE fEnv env e = go env e
+  where
+    gos env es               = concatMap (go env) es
+    go _   (Boolean {})      = []
+    go _   (Number  n     l) = if n >= maxInt || n < -maxInt then [errLargeNum l n] else []
+    go env (Id      x     l) = unboundVarErrors env x l
+    go env (Prim1 _ e     _) = go  env e
+    go env (Prim2 _ e1 e2 _) = gos env [e1, e2]
+    go env (If   e1 e2 e3 _) = gos env [e1, e2, e3]
+    go env (Let x e1 e2   _) = go env e1
+                             ++ msg
+                             ++ go (addEnv x env) e2
+      where
+        msg = case (lookupEnv (bindId x) env) of
+          Just a   -> [errDupBind x]
+          Nothing  -> []
+    go env (App f es      l) = funErrors fEnv f es l 
+                             ++ gos env es
 --------------------------------------------------------------------------------
 -- | Error Checkers: In each case, return an empty list if no errors.
 --------------------------------------------------------------------------------
@@ -61,6 +83,18 @@ duplicateFunErrors
   . concat
   . dupBy (bindId . fName)
 
+unboundVarErrors :: Env -> Id -> SourceSpan -> [UserError] 
+unboundVarErrors env x l  = case (lookupEnv x env) of
+      Just a   -> []
+      Nothing  -> [errUnboundVar l x]
+
+
+funErrors fEnv f es l = case (lookupEnv f fEnv) of
+      Just a   -> if length es == a then []
+                  else [errCallArity l f]
+      Nothing  -> [errUnboundFun l f]
+
+ 
 -- | `maxInt` is the largest number you can represent with 31 bits (accounting for sign
 --    and the tag bit.
 
@@ -76,19 +110,19 @@ errDupFun :: (Located (Bind a)) => Decl a -> UserError
 errDupFun d = mkError (printf "duplicate function '%s'" (pprint f))    (sourceSpan f) where f = fName d
 
 errDupParam :: (Located (Bind a)) => Bind a -> UserError
-errDupParam x = mkError (printf "Duplicate parameter '%s'" (bindId x)) (sourceSpan x)
+errDupParam x = mkError (printf "duplicate parameter '%s'" (bindId x)) (sourceSpan x)
 
 errDupBind :: (Located (Bind a)) => Bind a -> UserError
-errDupBind x = mkError (printf "Shadow binding '%s'" (bindId x))      (sourceSpan x)
+errDupBind x = mkError (printf "shadow binding '%s'" (bindId x))      (sourceSpan x)
 
 errLargeNum :: SourceSpan -> Integer -> UserError
-errLargeNum   l n = mkError (printf "Number '%d' is too large" n) l
+errLargeNum   l n = mkError (printf "number '%d' is too large" n) l
 
 errUnboundVar :: SourceSpan -> Id -> UserError
-errUnboundVar l x = mkError (printf "Unbound variable '%s'" x) l
+errUnboundVar l x = mkError (printf "unbound variable '%s'" x) l
 
 errUnboundFun :: SourceSpan -> Id -> UserError
-errUnboundFun l f = mkError (printf "Function '%s' is not defined" f) l
+errUnboundFun l f = mkError (printf "function '%s' is not defined" f) l
 
 errCallArity :: SourceSpan -> Id -> UserError
-errCallArity  l f = mkError (printf "Wrong arity of arguments at call of %s" f) l
+errCallArity  l f = mkError (printf "wrong arity of arguments at call of %s" f) l
