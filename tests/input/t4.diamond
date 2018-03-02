@@ -1,0 +1,9 @@
+def fac(n):
+  let t = n in
+  if (n < 1):
+    1
+  else:
+    n * fac(n - 1)
+
+
+fac(12) + fac(1)

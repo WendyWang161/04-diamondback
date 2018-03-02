@@ -1,0 +1,4 @@
+def powerSum(x,y):
+  x*x+y*y
+
+powerSum(3,2)

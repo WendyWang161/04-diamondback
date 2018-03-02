@@ -1,0 +1,8 @@
+def inc10(x):
+  x + 10
+
+def dec5(x):
+  x - 5
+
+
+dec5(inc10(5))

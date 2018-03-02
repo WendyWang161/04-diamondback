@@ -1,0 +1,7 @@
+def foo(x,y):
+  if y:
+    x + 1
+  else:
+    x - 1
+
+foo(12,true)
