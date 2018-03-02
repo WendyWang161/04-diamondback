@@ -1,0 +1,10 @@
+make[1]: Entering directory `/home/linux/ieng6/oce/9o/zhw161/cs131/04-diamondback'
+stack exec -- diamondback tests/input/five.diamond > tests/output/five.s
+nasm -f aout -o tests/output/five.o tests/output/five.s
+clang -g -m32 -mstackrealign -o tests/output/five.run c-bits/main.c tests/output/five.o
+tests/output/five.run > tests/output/five.result
+make[1]: Leaving directory `/home/linux/ieng6/oce/9o/zhw161/cs131/04-diamondback'
+stack exec -- diamondback tests/input/five.diamond > tests/output/five.s
+nasm -f aout -o tests/output/five.o tests/output/five.s
+clang -g -m32 -mstackrealign -o tests/output/five.run c-bits/main.c tests/output/five.o
+tests/output/five.run > tests/output/five.result

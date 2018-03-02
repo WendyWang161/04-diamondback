@@ -1,0 +1,7 @@
+def sumTR(acc, n):
+  if (n < 1):
+    acc 
+  else: 
+    sumTR(acc + 1, n - 1)
+
+sumTR(0, 1450000)

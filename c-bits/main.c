@@ -27,6 +27,18 @@ Copy over any error-detection functions here
 
 */
 
+void error(int code){
+   if (code == 0) {
+     fprintf(stderr, "Error: expected a number");
+   }
+   else if (code == 1) {
+     fprintf(stderr, "Error: arithmetic overflow");
+   }
+   else if (code == 2) {
+     fprintf(stderr, "Error: expected a boolean");
+   } 
+   exit(1);
+}
 
 // main should remain unchanged
 int main(int argc, char** argv) {

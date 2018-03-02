@@ -1,0 +1,11 @@
+make[1]: Entering directory `/home/linux/ieng6/oce/9o/zhw161/cs131/04-diamondback'
+make[1]: *** No rule to make target `tests/output/sum-tr.result'.  Stop.
+make[1]: Leaving directory `/home/linux/ieng6/oce/9o/zhw161/cs131/04-diamondback'
+stack exec -- diamondback tests/input/sum-tr.diamond > tests/output/sum-tr.s
+Errors found!
+tests/input/sum-tr.diamond:2:14-14: TrivialError (SourcePos {sourceName = "tests/input/sum-tr.diamond", sourceLine = Pos 2, sourceColumn = Pos 14} :| []) (Just (Tokens (':' :| ""))) (fromList [Label ('o' :| "perator"),EndOfInput])
+
+         2|  SumTR(acc, n):
+                          
+
+make: *** [tests/output/sum-tr.s] Error 1
